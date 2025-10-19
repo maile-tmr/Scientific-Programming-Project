@@ -160,3 +160,80 @@ ppi <- igraph::set_vertex_attr(
   value=ens_df$Gene.name[ix]
 )
 head(names(V(ppi)))
+
+###--------------------------------------------------------------------------###
+##Part 3: Combine the co-expression and PPI networks
+#In this section, we subset the PPI to match the same genes as the co-expression
+#network. We also subset the co-expression network (TOM) to match the PPI.
+
+# Keep genes that are in the co-expression network and in the PPI network
+keep_genes <- GetWGCNAGenes(seurat_obj)
+keep_genes <- keep_genes[keep_genes %in% names(V(ppi))]
+
+# Subset the PPI network
+ppi <- igraph::subgraph(
+  ppi,
+  vids = keep_genes
+)
+
+# Get the adjacency matrix representation of the PPI and
+# binarize the matrix so 0 means no PPI, 1 means PPI 
+ppi_mat <- igraph::as_adjacency_matrix(ppi, sparse=TRUE)
+ppi_mat[ppi_mat > 0] <- 1
+
+# Get the coex network (TOM), 
+TOM <- GetTOM(seurat_obj)
+TOM <- TOM[rownames(ppi_mat), colnames(ppi_mat)]
+
+# Perform element-wise multiplicaiton of the TOM by the PPIs network 
+# to only retain gene-gene links supported by PPIs
+TOM_ppi <- TOM * as.vector(ppi_mat)
+
+# Get modules and from the seurat obj
+modules <- GetModules(seurat_obj) %>% 
+  subset(module != 'grey' & gene_name %in% keep_genes) %>%  
+  mutate(module = droplevels(module))
+mods <- levels(modules$module)
+
+# Get module colors for plotting 
+mod_colors <- dplyr::select(modules, c(module, color)) %>% distinct()
+mod_cp <- mod_colors$color; names(mod_cp) <- as.character(mod_colors$module)
+
+# Select the module to plot
+cur_mod <- 'SHF-M4'
+#cur_mod <- 'SHF-M13'
+#cur_mod <- 'SHF-M18'
+
+# Plot the original co-expression network 
+tmp <- ModuleTopologyHeatmap(
+  seurat_obj,
+  mod = cur_mod,
+  matrix = TOM,
+  matrix_name = 'TOM',
+  order_by = 'kME',
+  high_color = mod_cp[cur_mod],
+  type = 'unsigned',
+  return_genes = TRUE # select this option to get the gene order
+) 
+
+# Get the plot from the output list
+p1 <- tmp[[1]] + ggtitle('Co-expression only') + NoLegend()
+
+# Get the gene order from the output list
+gene_list <- tmp[[2]]
+
+# Plot the integrated network
+p2 <- ModuleTopologyHeatmap(
+  seurat_obj,
+  mod = cur_mod,
+  matrix = TOM_ppi,
+  matrix_name = 'TOM',
+  order_by = 'kME',
+  high_color = mod_cp[cur_mod],
+  type = 'unsigned',
+  plot_max = tmp$plot_max,
+  genes_order = gene_list
+) + ggtitle('Co-expression + PPI')
+
+# Combine with patchwork
+(p1 | p2) + plot_annotation(title =cur_mod) & theme(plot.title=element_text(hjust=0.5))
