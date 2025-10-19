@@ -47,7 +47,9 @@ set.seed(12345)
 # optionally enable multithreading
 enableWGCNAThreads(nThreads = 8)
 
-The data is available here: 
+# The dataset is uploaded here: 
+# https://drive.google.com/file/d/18FvglCVXvVpGjcXPlhxLWISqkpD92WYS/view?usp=sharing 
+
 # Load the scRNA-seq dataset
 seurat_obj <- readRDS("filtered_sqc_data.rds")
 
