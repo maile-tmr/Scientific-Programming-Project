@@ -64,3 +64,99 @@ n_ppis <- length(E(ppi))
 n_proteins <- length(V(ppi))
 print(paste0("N proteins: ", n_proteins, ' | N PPIs: ', n_ppis))
 
+###--------------------------------------------------------------------------###
+##Part 2: Match protein and gene names
+#Currently, the proteins are named using their Ensembl protein IDs with the 
+#species taxonomy ID (10090) appended to the front. In order to integrate the 
+#PPI network and the co-expression network, we need a common naming convention. 
+
+#To solve this, we will convert these protein IDs to gene names using Ensembl BioMart. 
+#Using BioMart, we generated a table with the following attributes: Gene.stable.ID,
+#Gene.stable.ID.version, Transcript.stable.ID, Transcript.stable.ID.version,
+# Protein.stable.ID, Protein.stable.Id.version, Gene.name
+
+# First, check how the proteins are named in the PPI network.
+head(names(V(ppi)))
+
+# Then download the table from BioMart for mouse and then load it into R
+library(tidyr) #for seperating columns
+setwd("D:/UM/Scientific programming")
+gene_stable_id_version <- read.table("D:/UM/Scientific programming/gene.stable.id.version.txt", sep='\t', header=1)
+transcript_stable_id <- read.table("D:/UM/Scientific programming/transcript.stable.id.txt", sep='\t', header=1)
+transcript_stable_id_version <- read.table("D:/UM/Scientific programming/transcript.stable.id.version.txt", sep='\t', header=1)
+protein_stable_id <- read.table("D:/UM/Scientific programming/protein.stable.id.txt", sep='\t', header=1)
+protein_stable_id_version <- read.table("D:/UM/Scientific programming/protein.stable.id.version.txt", sep='\t', header=1)
+gene_name <- read.table("D:/UM/Scientific programming/gene.name.txt", sep='\t', header=1)
+
+# Process each file and then merge them into one completed file. 
+ens_df1 <- gene_stable_id_version %>% separate(Gene.stable.ID.Gene.stable.ID.version,
+          c("Gene.stable.ID", "Gene.stable.ID.version"))
+ens_df2 <- transcript_stable_id %>% separate(Gene.stable.ID.Transcript.stable.ID,
+          c("Gene.stable.ID", "Transcript.stable.ID"))
+ens_df3 <- transcript_stable_id_version %>% separate(Gene.stable.ID.Transcript.stable.ID.version,
+          c("Gene.stable.ID", "Transcript.stable.ID.version"))
+ens_df4 <- protein_stable_id %>% separate(Gene.stable.ID.Protein.stable.ID,
+          c("Gene.stable.ID", "Protein.stable.ID"))
+ens_df5 <- protein_stable_id_version %>% separate(Gene.stable.ID.Protein.stable.ID.version,
+          c("Gene.stable.ID", "Protein.stable.ID.version"))
+ens_df6 <- gene_name %>% separate(Gene.stable.ID.Gene.name,
+          c("Gene.stable.ID", "Gene.name"))
+#Merge all information into 1 dataframe 
+merged_df1 <- merge(
+  ens_df1, ens_df2,
+  by = "Gene.stable.ID", 
+  all.x = TRUE            
+)
+
+merged_df1$Transcript.stable.ID.version <- ens_df3$Transcript.stable.ID.version
+
+merged_df2 <- merge(
+  ens_df4, ens_df1,
+  by = "Gene.stable.ID",  
+  all.x = TRUE            
+)
+
+merged_df2$Protein.stable.ID.version <- ens_df5$Protein.stable.ID.version
+
+merged_df3 <- merge(
+  merged_df2, ens_df6,
+  by = "Gene.stable.ID",  
+  all.x = TRUE           
+)
+
+df <-  merge(
+  merged_df1, merged_df3,
+  by = "Gene.stable.ID",  
+  all.x = TRUE            
+)
+
+# Remove the Taxonomy ID from the protein names
+ppi <- igraph::set_vertex_attr(
+  ppi, 'name', 
+  value=stringr::str_replace(names(V(ppi)), '10090.', '')
+)
+
+# Subset the table for genes that are in the Seurat obj & have a corresponding 
+# protein entry in the PPI network
+ens_df <- subset(
+  df, 
+  Gene.name %in% rownames(seurat_obj) & 
+    Protein.stable.ID %in% names(V(ppi))
+)
+
+# Remove duplicates
+ens_df <- ens_df[ , !duplicated(names(ens_df))] 
+
+# Subset the PPI network to just proteins found in our Ensembl data
+ppi <- igraph::subgraph(
+  ppi,
+  vids = unique(ens_df$Protein.stable.ID)
+)
+
+# Match the protein names w/ gene names, update the PPI network
+ix <- match(names(V(ppi)), ens_df$Protein.stable.ID)
+ppi <- igraph::set_vertex_attr(
+  ppi, 'name', 
+  value=ens_df$Gene.name[ix]
+)
+head(names(V(ppi)))
