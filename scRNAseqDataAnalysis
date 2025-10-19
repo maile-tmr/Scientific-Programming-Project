@@ -10,6 +10,7 @@
 
 setwd("D:/UM/Scientific programming")
 
+library(remotes)
 #Install Seurat 5 from GitHub
 remotes::install_github("satijalab/seurat", "seurat5", quiet = TRUE)
 #Install library(SeuratData) from GitHub
@@ -30,7 +31,6 @@ library(SeuratData)
 library(ggplot2)
 library(patchwork)
 library(dplyr)
-library(remotes)
 library(cowplot)
 library(harmony)
 library(ggthemes)
