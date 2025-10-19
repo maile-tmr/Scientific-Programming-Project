@@ -107,3 +107,33 @@ data <- ScaleData(data,  verbose=FALSE)
 
 # Perform dimensional reduction using PCA
 data <- RunPCA(data, verbose=FALSE)
+
+###--------------------------------------------------------------------------###
+##Part 3: Batch-corrected clustering and visualization of scRNA-seq data
+
+# Perform batch correction using Harmony
+data <- RunHarmony(data, group.by.vars = "orig.ident", layer = "RNA", 
+                   max.iter.harmony = 20)
+
+# Build the nearest-neighbor graph using Harmony-reduced embeddings. 
+# This graph is later used for clustering
+# Try different values of k (defaul value = 30) to identify the optimal one 
+# that balances both local and global preservation of the data 
+data <- FindNeighbors(data, reduction = "harmony", dims = 1:50, k.param = 40)
+
+# Perform graph-based clustering by using the Leiden algorithm. 
+# Try different values of resolution to identify the optimal one, 
+# given that there are 10 cell types in this dataset.
+data <- FindClusters(data, resolution = 0.2) #Number of communities/clusters:12
+
+# Compute a UMAP embedding using the Harmony-corrected data for 2D visualization.
+data <- RunUMAP(data, reduction = "harmony", dims = 1:50, n.neighbors = 40)
+
+# UMAP visualization plots clusters split by sample condition (orig.ident = KO or WT)
+DimPlot(data, group.by = "seurat_clusters", split.by="orig.ident", ncol=2, 
+        raster=FALSE) + ggtitle("") + NoLegend() + theme_map()
+
+# Visualize clusters based on PCA reduction before batch correction
+DimPlot(data, group.by = "seurat_clusters", reduction = "pca") 
+
+
