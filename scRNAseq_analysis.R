@@ -161,3 +161,17 @@ DimPlot(data, group.by = "seurat_clusters", split.by="orig.ident", ncol=2,
 # Visualize clusters based on PCA reduction before batch correction
 DimPlot(data, group.by = "seurat_clusters", reduction = "pca") 
 
+###--------------------------------------------------------------------------###
+##Part 4: Find marker genes for each cluster
+
+# find all markers of cluster 0
+cluster0.markers <- FindMarkers(data, ident.1 = 0)
+head(cluster0.markers, n = 10)
+
+# Repeat for cluster 1,2,3,...11
+#cluster1.markers <- FindMarkers(data, ident.1 = 1)
+#head(cluster1.markers, n = 10)
+
+# Visualize expression patterns of multiple marker genes together
+FeaturePlot(data, features = c("Cdh5", "Myl2", "Twist1", "Myl1", "Upk3b", "Fbln5",
+                               "Tcf21", "Islr", "Hbb-bt","C1qa"))
