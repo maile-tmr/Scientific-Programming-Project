@@ -149,7 +149,7 @@ data <- FindNeighbors(data, reduction = "harmony", dims = 1:50, k.param = 40)
 data <- FindClusters(data, resolution = 0.2) #Number of communities/clusters:12
 
 # Compute a UMAP embedding using the Harmony-corrected data for 2D visualization.
-data <- RunUMAP(data, reduction = "harmony", dims = 1:50, n.neighbors = 40)
+data <- RunUMAP(data, reduction = "harmony", dims = 1:50, n.neighbors =440)
 
 # UMAP visualization plots clusters split by sample condition (orig.ident = KO or WT)
 DimPlot(data, group.by = "seurat_clusters", split.by="orig.ident", ncol=2, 
