@@ -10,6 +10,20 @@
 
 setwd("D:/UM/Scientific programming")
 
+#Install Seurat 5 from GitHub
+remotes::install_github("satijalab/seurat", "seurat5", quiet = TRUE)
+#Install library(SeuratData) from GitHub
+remotes::install_github("satijalab/seurat-data", "seurat5", quiet = TRUE)
+
+#Besided GitHub, we can install Seurat from CRAN
+# Enter commands in R (or R studio, if installed)
+install.packages('Seurat')
+
+#If you see the warning message below, enter y:
+#package which is only available in source form, and may need compilation of C/C++/Fortran: 'Seurat'
+#Do you want to attempt to install these from sources?
+#y/n:
+
 #Load required packages
 library(Seurat)
 library(SeuratData)
