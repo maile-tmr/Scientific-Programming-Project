@@ -37,7 +37,9 @@ Step 8: Cell Type Annotation annotates clusters based on marker genes—genes ch
 These steps were conduced using Seurat package. Code for step 1 to step 8 is stored in scRNAseqDataAnalyis file
 
 Step 9: Network Analysis
-#----------------------------------------------------------------------------------------------------------------------------#
+
+#------------------------------------------------------------------------------------------------------------------------#
+
 Part 2: Cell-type-specific co-expression network construction and visualization
 
 The result from the single-cell sequencing helped me identify which cell type should be my main focus. I chose the SHF cell type because it shows the most differences in gene exp between the knockout and wild-type groups, and is more relevant to heart biology than erythrocytes or macrophages. This project constructed co-expression network specific to SHF using hdWGCNA package which is compatible to single-cell transcriptomics data and Seurat package. 
@@ -46,12 +48,13 @@ Before constructing network, it is critical to determine a proper value for the 
 
 The network analysis found 22 different co-expression modules for second heart field cells, as represented in the dendrogram plot. But I didnot contruct co-expression networks for all of them, I selected somes hub modules to build the network.
 
-To identify hub modules, Differential module eigengene” (DME) analysis was performed to identify which modules have high effect size with significance (p-value). They were selected as hub modules to construct the co-expression networks.
+To identify hub modules, Differential module eigengene (DME) analysis was performed to identify which modules have high effect size with significance (p-value). They were selected as hub modules to construct the co-expression networks.
 
 Afterwards, I visualized co-expression networks for these modules using network visualization functions specific to hdWGCNA.
 Code for constructing anf visualizing co-expression networks is stored in scNetworkAnalysis file. 
 
-#----------------------------------------------------------------------------------------------------------------------------#
+#-----------------------------------------------------------------------------------------------------------------------#
+
 Part 3: Integrating co-expression networks with PPI network to identify overlapping hub genes
 
 Although Co-expression networks are a powerful tool for uncovering biological patterns in transcriptomic data in an unsupervised manner. However, interpreting these networks can be challenging. To improve interpretability—especially regarding hub genes—I intergrated the co-expression network with a protein-protein interaction network using STRINGdb package. Finally, the overlapping hub genes between original co-expression networks and PPI networks of hub modules were determined as potential target for treating LVNC disease. 
