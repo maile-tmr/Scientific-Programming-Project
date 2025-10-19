@@ -191,3 +191,33 @@ head(modules[,1:6])
 # Get hub genes
 hub_df <- GetHubGenes(seurat_obj, n_hubs = 10)
 head(hub_df)
+
+###--------------------------------------------------------------------------###
+## Part 3: Differential module eigengene (DME) analysis
+
+# Define cells labeled as 'SHF' celltype and from sample 'Cyp26b1_KO_E12.5' as group 1
+group1 <- seurat_obj@meta.data %>% subset(celltype == 'SHF' & orig.ident == "Cyp26b1_KO_E12.5") %>% rownames
+
+# Define cells labeled as 'SHF' celltype and from sample 'WT_E12.5' as group 2
+group2 <- seurat_obj@meta.data %>% subset(celltype == 'SHF' & orig.ident == "WT_E12.5") %>% rownames
+head(group1)
+
+# Perform DME analysis between the two groups using the Wilcoxon rank-sum test.
+DMEs <- FindDMEs(
+  seurat_obj,
+  barcodes1 = group1,
+  barcodes2 = group2,
+  test.use='wilcox',
+  wgcna_name='tutorial'
+)
+
+# The top results from the DME analysis showing modules differentially expressed.
+head(DMEs)
+
+# Make a volcano plot to show the effect size and the significance level together.
+PlotDMEsVolcano(
+  seurat_obj,
+  DMEs,
+  wgcna_name = 'tutorial'
+)
+# Output: Hub modules are moldules 4, 13, and 18  
