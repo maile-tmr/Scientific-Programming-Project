@@ -6,6 +6,8 @@ Therefore, this project aim to analyse scRNA deq data from the embryonic mouse h
 
 The dataset for this project is available here: https://drive.google.com/file/d/18FvglCVXvVpGjcXPlhxLWISqkpD92WYS/view?usp=drive_link.
 
+It was extracted from the original dataset of this paper: "Single-cell RNA sequencing dataset of hearts from wild type and Cyp26b1 knockout mouse embryos". (https://www.nature.com/articles/s41597-025-05497-5#Sec9)
+
 This dataset was already pre-filtered to ensure high quality data by retaining only:
 
 +/ Singlet cells, excluding doublets and multiplets for accurate single-cell resolution.
