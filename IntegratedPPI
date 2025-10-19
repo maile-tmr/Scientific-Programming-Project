@@ -1,0 +1,66 @@
+#=============================================================================#
+# Course: Scientific Programming 
+# Research Project 
+# Section 3: Construction of PPI network and Integration of co-expression and 
+# PPI networks
+#																	                                       		   															                                #
+# Date: October 19, 2025											                                
+# Author: Mai Le, ID: i6375777
+# Maastricht University                                                       #
+#=============================================================================#
+
+# Important Note: Before running the code in this tutorial, you must first 
+# perform the standard co-expression network analysis and module identification 
+# with hdWGCNA, as shown in file scNetworkAnalysis.R
+
+# single-cell analysis package
+library(Seurat)
+
+# plotting and data science packages:
+library(tidyverse)
+library(cowplot)
+library(patchwork)
+library(magrittr)
+library(patchwork)
+
+# co-expression network analysis packages:
+library(WGCNA)
+library(hdWGCNA)
+
+# network analysis & visualization package:
+library(igraph)
+
+# using the cowplot theme for ggplot
+theme_set(theme_cowplot())
+
+# set random seed for reproducibility
+set.seed(12345)
+
+# re-load the Zhou et al snRNA-seq dataset
+seurat_obj <- readRDS('data/Zhou_control.rds')
+
+# Install STRINGdb package for retrieving PPI network 
+#BiocManager::install('STRINGdb')
+library(STRINGdb)
+
+###--------------------------------------------------------------------------###
+##Part 1: Create the PPI igraph object
+#In this section, we represent the PPI network using an igraph object. 
+#First, we generate a STRINGdb object using the class constructor STRINGdb$new.
+
+# Initialize the stringdb
+string_db <- STRINGdb$new( 
+  version="12.0", species=10090, # the species taxonomy ID for mouse
+  score_threshold=200, #the minimum combined interaction score for a PPI
+  network_type="full", 
+  input_directory="" 
+)
+
+# Retrieve the full PPI graph as an igraph object
+ppi <- string_db$get_graph()
+
+# Check how many protiens (vertices) and how many PPIs (edges) are in this network.
+n_ppis <- length(E(ppi))
+n_proteins <- length(V(ppi))
+print(paste0("N proteins: ", n_proteins, ' | N PPIs: ', n_ppis))
+
