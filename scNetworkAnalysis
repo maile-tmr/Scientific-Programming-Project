@@ -221,3 +221,63 @@ PlotDMEsVolcano(
   wgcna_name = 'tutorial'
 )
 # Output: Hub modules are moldules 4, 13, and 18  
+
+###--------------------------------------------------------------------------###
+## Part 4: Visualization of Cell-type-specific co-expression networks 
+
+# Load required packages for network visualization
+library(tidyverse)
+library(cowplot)
+library(patchwork)
+library(magrittr)
+
+# Co-expression network analysis packages
+library(WGCNA)
+library(hdWGCNA)
+
+# Network analysis & visualization package
+library(igraph)
+
+# Using the cowplot theme for ggplot
+theme_set(theme_cowplot())
+
+# Set random seed for reproducibility
+set.seed(12345)
+
+# Individual module network plots
+ModuleNetworkPlot(
+  seurat_obj, 
+  outdir='ModuleNetworks', #new folder name
+  n_inner = 10, #number of genes in inner ring = hub genes
+  n_outer = 30, #number of genes in outer ring
+  plot_size=c(10,10), #larger plotting area
+  mods = mods[c(4,13,18)], #selected modules 
+  edge_prop = 0.1, #only the top 10% strongest edges
+  vertex.label.cex=1 #font size
+)
+
+options(future.globals.maxSize = Inf)  # Set up "No limit"
+
+# Get the list of modules
+modules <- GetModules(seurat_obj)
+
+# Extract the unique module names (levels) excluding the 'grey' module.
+mods <- levels(modules$module); mods <- mods[mods != 'grey']
+
+# Adjust plot margins for better visualization.
+dev.off()
+par(mar = c(2, 2, 2, 2))
+
+# Combined hub gene network plots of modules 4,13,18
+g <- HubGeneNetworkPlot(
+  seurat_obj,
+  n_hubs = 10, #top 10 hub genes
+  n_other=30,
+  edge_prop = 0.1, #only the top 10% strongest edges
+  mods = mods[c(4,13,18)], # only select 3 modules
+)
+g
+
+###-------------------------------End----------------------------------------###
+
+
