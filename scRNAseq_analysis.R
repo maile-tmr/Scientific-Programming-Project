@@ -160,3 +160,4 @@ DimPlot(data, group.by = "seurat_clusters", split.by="orig.ident", ncol=2,
 
 # Visualize clusters based on PCA reduction before batch correction
 DimPlot(data, group.by = "seurat_clusters", reduction = "pca") 
+
