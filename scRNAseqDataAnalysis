@@ -1,0 +1,216 @@
+#=============================================================================#
+# Course: Scientific Programming 
+# Research Project 
+# Section 1: Cell type cluster and annotation for single-cell RNA sqc data
+#																	                                       		   															                                #
+# Date: October 19, 2025											                                
+# Author: Mai Le, ID: i6375777
+# Maastricht University                                                       #
+#=============================================================================#
+
+setwd("D:/UM/Scientific programming")
+
+#Load required packages
+library(Seurat)
+library(SeuratData)
+library(ggplot2)
+library(patchwork)
+library(dplyr)
+library(remotes)
+library(cowplot)
+library(harmony)
+library(ggthemes)
+library(ggalluvial)
+library(tidyverse)
+library(ggthemes)
+library(ggpubr)
+
+###--------------------------------------------------------------------------###
+## Part 1: Upload data, create Seurat object for scRNA-seq data of embryonic, 
+# mouse heart at the day 12.5 of development, and perform quality control.
+
+# The dataset is uploaded here: 
+# https://drive.google.com/file/d/18FvglCVXvVpGjcXPlhxLWISqkpD92WYS/view?usp=sharing 
+
+# Load the dataset
+orig_data <- readRDS("filtered_sqc_data.rds")
+
+# Extract the raw RNA count data from the original Seurat object
+counts_matrix <- GetAssayData(orig_data, assay = "RNA", layer = "counts")
+
+# Create a new Seurat object with these counts
+data <- CreateSeuratObject(counts = counts_matrix, assay = "RNA")
+
+# Transfer the mitochondrial percentage metadata (percent.mt) from 
+# the original object to the new one
+data@meta.data$percent.mt <- orig_data@meta.data$percent.mt
+
+#Run additional command if you are using Seurat v5
+data <- SeuratObject::UpdateSeuratObject(data) 
+
+#-------------------------Quality control--------------------------------------#
+
+# Set the cell identities in the Seurat object to the original sample identifier
+# ('orig.ident') from metadata.
+Idents(data) <- data$orig.ident
+
+# Create a violin plot visualizing the distribution of the number of detected 
+# genes per cell ('nFeature_RNA'), grouped by the sample conditions (KO or WT)
+p1 <- VlnPlot(data, features = c("nFeature_RNA"), pt.size = 0, raster=FALSE) +
+  theme_bw(base_size = 12) + 
+  NoLegend() + 
+  labs(x = "", y = "Number of genes") + 
+  theme(plot.title = element_blank(), 
+        axis.text = element_text(size = 10), 
+        axis.title = element_text(size = 12), 
+        axis.text.x = element_text(angle = 45, hjust = 1))
+p1
+
+# Create a violin plot showing the distribution of the total RNA counts per cell
+# ('nCount_RNA'), grouped by the sample conditions (KO or WT)
+p2 <- VlnPlot(data, features = c("nCount_RNA"), pt.size = 0, raster=FALSE) +
+  theme_bw(base_size = 12) + NoLegend() + labs(x="", y="Number of UMIs") + 
+  theme(plot.title=element_blank(),
+        axis.text=element_text(size=10), 
+        axis.title = element_text(size = 12), 
+        axis.text.x=element_text(angle = 45, hjust=1))
+p2
+
+# Create a violin plot displaying the distribution of the percentage of mitochondrial 
+# gene expression ('percent.mt') per cell, grouped by the sample conditions (KO or WT)
+p3 <- VlnPlot(data, features = c("percent.mt"), pt.size = 0, raster=FALSE) +  
+  theme_bw(base_size = 12) + NoLegend() + labs(x="", y="Percent of mitochondria") + 
+  theme(plot.title=element_blank(),
+        axis.text=element_text(size=10), 
+        axis.title = element_text(size = 12), 
+        axis.text.x=element_text(angle = 45,hjust=1)) 
+p3
+
+###--------------------------------------------------------------------------###
+##Part 2: Pre-process the seurat object for clustering and annotation
+
+# Use the cowplot theme for ggplot
+theme_set(theme_cowplot())
+
+# set random seed for reproducibility
+set.seed(100)
+
+# Normalize data
+data <- NormalizeData(data, normalization.method = "LogNormalize", 
+                      verbose=FALSE, scale.factor = 10000, assay = "RNA")
+
+# Identify top 2000 highly variable features
+data <- FindVariableFeatures(data, verbose=FALSE, selection.method = "vst", 
+                             nfeatures = 2000)
+
+# Scale the data
+data <- ScaleData(data,  verbose=FALSE)
+
+# Perform dimensional reduction using PCA
+data <- RunPCA(data, verbose=FALSE)
+
+###--------------------------------------------------------------------------###
+##Part 3: Select the optimal number of PCs used for clustering
+
+## Method 1: Use Elbow plot
+#Run elbow plot to identify optimal number of PCs
+ElbowPlot(data, ndims = 50) # 50PC is the maximun value 
+
+## Method 2: Identify PCs that explain 80% of variances
+# Determine percent of variation associated with each PC
+pct <- data[["pca"]]@stdev / sum(data[["pca"]]@stdev) * 100
+
+# Calculate cumulative percents for each PC
+cumu <- cumsum(pct)
+
+# Determine which PC exhibits cumulative percent greater than 
+# 90% and % variation associated with the PC as less than 5
+co1 <- which(cumu > 90 & pct < 5)[1]
+
+co1
+# col = 41
+# Select the first 50 PCs for dimensional reduction
+
+###--------------------------------------------------------------------------###
+##Part 4: Batch-corrected clustering and visualization of scRNA-seq data
+
+# Perform batch correction using Harmony
+data <- RunHarmony(data, group.by.vars = "orig.ident", layer = "RNA", 
+                   max.iter.harmony = 20)
+
+# Build the nearest-neighbor graph using Harmony-reduced embeddings. 
+# This graph is later used for clustering
+# Try different values of k (defaul value = 30) to identify the optimal one 
+# that balances both local and global preservation of the data 
+data <- FindNeighbors(data, reduction = "harmony", dims = 1:50, k.param = 40)
+
+# Perform graph-based clustering by using the Leiden algorithm. 
+# Try different values of resolution to identify the optimal one, 
+# given that there are 10 cell types in this dataset.
+data <- FindClusters(data, resolution = 0.2) #Number of communities/clusters:12
+
+# Compute a UMAP embedding using the Harmony-corrected data for 2D visualization.
+data <- RunUMAP(data, reduction = "harmony", dims = 1:50, n.neighbors =440)
+
+# UMAP visualization plots clusters split by sample condition (orig.ident = KO or WT)
+DimPlot(data, group.by = "seurat_clusters", split.by="orig.ident", ncol=2, 
+        raster=FALSE) + ggtitle("") + NoLegend() + theme_map()
+
+# Visualize clusters based on PCA reduction before batch correction
+DimPlot(data, group.by = "seurat_clusters", reduction = "pca") 
+
+###--------------------------------------------------------------------------###
+##Part 5: Find marker genes for each cluster
+
+# find all markers of cluster 0
+cluster0.markers <- FindMarkers(data, ident.1 = 0)
+head(cluster0.markers, n = 10)
+
+# Repeat for cluster 1,2,3,...11
+#cluster1.markers <- FindMarkers(data, ident.1 = 1)
+#head(cluster1.markers, n = 10)
+
+# Then visualizing the spatial distribution and expression levels of marker gene
+# for each cell type in UMAP plot
+FeaturePlot(data, features = c("Cdh5")) # canonical marker for endothelial cells 
+FeaturePlot(data, features = c("Myl2")) # canonical marker for ventricular cardiomyocytes
+FeaturePlot(data, features = c("Twist1")) # canonical marker for EndMT 
+FeaturePlot(data, features = c("Myl1")) # canonical marker for atrial cardiomyocytes
+FeaturePlot(data, features = c("Upk3b")) # canonical marker for epithelial cells
+FeaturePlot(data, features = c("Fbln5")) # canonical marker for vascular smooth muscle cells
+FeaturePlot(data, features = c("Tcf21")) # canonical marker for epicardium derived cells
+FeaturePlot(data, features = c("Islr")) # canonical marker for second heart field cells
+FeaturePlot(data, features = c("Hbb-bt")) # canonical marker for erythrocytes
+FeaturePlot(data, features = c("C1qa")) # canonical marker for macrophages.
+
+# Visualize expression patterns of multiple marker genes together
+FeaturePlot(data, features = c("Cdh5", "Myl2", "Twist1", "Myl1", "Upk3b", "Fbln5",
+                               "Tcf21", "Islr", "Hbb-bt","C1qa"))
+
+###--------------------------------------------------------------------------###
+##Part 6: Annotate cell types for each cluster
+
+# Define a vector of cell type labels corresponding to each cluster in the data.
+new.cluster.ids <- c("EC", "EndMT", "vCM","VSMC", "Epi", "EC","EPDC", "aCM",
+                     "EC", "SHF", "Ery", "Mac")
+
+# Assign the defined cell type labels to cluster levels in the Seurat object.
+names(new.cluster.ids) <- levels(data)
+
+# Rename cluster identities in the Seurat object with the new cell type labels.
+data <- RenameIdents(data, new.cluster.ids)
+
+# Store the new cell type labels in the metadata for easy reference and downstream use.
+data@meta.data$celltype <- Idents(data)
+
+# Re-run UMAP dimensional reduction using the Harmony-corrected embeddings 
+data <- RunUMAP(data, reduction="harmony", verbose = FALSE, dims = 1:50,  n.neighbors = 40)
+
+# Generate a UMAP plot showing the annotated cell types, split by original sample identity.
+p <- DimPlot(data, group.by = 'celltype', split.by = "orig.ident", label = TRUE) +
+  umap_theme() + ggtitle('') + NoLegend()
+
+# Display the plot.
+p
+
+###--------------------------------End---------------------------------------###
