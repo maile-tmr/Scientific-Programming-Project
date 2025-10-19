@@ -172,6 +172,21 @@ head(cluster0.markers, n = 10)
 #cluster1.markers <- FindMarkers(data, ident.1 = 1)
 #head(cluster1.markers, n = 10)
 
+
+# Then visualizing the spatial distribution and expression levels of marker gene
+# for each cell type in UMAP plot
+FeaturePlot(data, features = c("Cdh5")) # canonical marker for endothelial cells 
+FeaturePlot(data, features = c("Myl2")) # canonical marker for ventricular cardiomyocytes
+FeaturePlot(data, features = c("Twist1")) # canonical marker for EndMT 
+FeaturePlot(data, features = c("Myl1")) # canonical marker for atrial cardiomyocytes
+FeaturePlot(data, features = c("Upk3b")) # canonical marker for epithelial cells
+FeaturePlot(data, features = c("Fbln5")) # canonical marker for vascular smooth muscle cells
+FeaturePlot(data, features = c("Tcf21")) # canonical marker for epicardium derived cells
+FeaturePlot(data, features = c("Islr")) # canonical marker for second heart field cells
+FeaturePlot(data, features = c("Hbb-bt")) # canonical marker for erythrocytes
+FeaturePlot(data, features = c("C1qa")) # canonical marker for macrophages.
+
 # Visualize expression patterns of multiple marker genes together
 FeaturePlot(data, features = c("Cdh5", "Myl2", "Twist1", "Myl1", "Upk3b", "Fbln5",
                                "Tcf21", "Islr", "Hbb-bt","C1qa"))
+
