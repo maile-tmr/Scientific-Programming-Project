@@ -1,0 +1,285 @@
+#=============================================================================#
+# Course: Scientific Programming 
+# Research Project 
+# Section 2: Construction of Cell-type-specific co-expression networks
+#																	                                       		   															                                #
+# Date: October 19, 2025											                                
+# Author: Mai Le, ID: i6375777
+# Maastricht University                                                       #
+#=============================================================================#
+
+
+setwd("D:/UM/Scientific programming")
+
+# Load required packages
+library(Seurat)
+library(SeuratData)
+#library(SeuratWrappers)
+#library(Azimuth)
+library(ggplot2)
+library(patchwork)
+library(ggrepel)
+library(dplyr)
+library(remotes)
+library(Seurat)
+library(tidyverse)
+library(cowplot)
+#BiocManager::install("UCell")
+#BiocManager::install("GeneOverlap")
+library(UCell) #required for hdWGCNA install
+library(GeneOverlap)  #required for hdWGCNA install
+
+# Install hdWGCNA package from github
+if (!requireNamespace("devtools", quietly = TRUE)) {
+  install.packages("devtools")
+}
+devtools::install_github("smorabit/hdWGCNA")
+
+library(WGCNA)
+library(hdWGCNA)
+
+# using the cowplot theme for ggplot
+theme_set(theme_cowplot())
+
+# set random seed for reproducibility
+set.seed(12345)
+
+# optionally enable multithreading
+enableWGCNAThreads(nThreads = 8)
+
+# The dataset is uploaded here: 
+# https://drive.google.com/file/d/18FvglCVXvVpGjcXPlhxLWISqkpD92WYS/view?usp=sharing 
+
+# Load the scRNA-seq dataset
+seurat_obj <- readRDS("filtered_sqc_data.rds")
+
+# Run additional command if you are using Seurat v5
+seurat_obj <- SeuratObject::UpdateSeuratObject(seurat_obj)
+
+# Plot the UMAP colored by cell type just to check that we have loaded the data correctly, 
+# and to make sure that we have grouped cells into clusters and cell types.
+p <- DimPlot(seurat_obj, group.by='celltype', label=TRUE) +
+  umap_theme() + ggtitle('') + NoLegend()
+p
+
+###--------------------------------------------------------------------------###
+## Part 1:  Set up Seurat object for hdWGCNA and construct metacells
+
+# Set up Seurat object and Select genes that are expressed in at least 5% of cells
+# in this dataset, and we will name our hdWGCNA experiment “tutorial”
+seurat_obj <- SetupForWGCNA(
+  seurat_obj,
+  gene_select = "fraction", # the gene selection approach
+  fraction = 0.05, # fraction of cells that a gene needs to be expressed in order to be included
+  wgcna_name = "tutorial" # the name of the hdWGCNA experiment
+)
+
+# Construct metacells in each group
+seurat_obj <- MetacellsByGroups(
+  seurat_obj = seurat_obj,
+  group.by = c("celltype", "orig.ident"), # specify the columns in seurat_obj@meta.data to group by
+  reduction = 'harmony', # select the dimensionality reduction to perform KNN on
+  k = 30, # nearest-neighbors parameter
+  max_shared = 10, # maximum number of shared cells between two metacells
+  ident.group = 'celltype' # set the Idents of the metacell seurat object
+)
+# Output: In MetacellsByGroups(seurat_obj = seurat_obj, group.by = c("celltype",  :
+#Removing the following groups that did not meet min_cells: Ery#WT_E12.5
+
+# Normalize metacell expression matrix
+seurat_obj <- NormalizeMetacells(seurat_obj)
+
+###----------------Process the Metacell Seurat Object------------------------###
+# Extract the metacell-level expression data stored within the Seurat object for further analysis.
+metacell_obj <- GetMetacellObject(seurat_obj)
+
+# Normalize the metacell expression matrix.
+seurat_obj <- NormalizeMetacells(seurat_obj)
+
+# Scale the metacell data focusing on variable features 
+seurat_obj <- ScaleMetacells(seurat_obj, features=VariableFeatures(seurat_obj))
+
+# Perform PCA on metacells using variable genes to reduce dimensionality while preserving key variation.
+seurat_obj <- RunPCAMetacells(seurat_obj, features=VariableFeatures(seurat_obj))
+
+# Apply Harmony batch correction on metacell PCA embeddings
+seurat_obj <- RunHarmonyMetacells(seurat_obj, group.by.vars='orig.ident')
+
+# Generate a UMAP embedding from the Harmony-corrected metacell space
+seurat_obj <- RunUMAPMetacells(seurat_obj, reduction='harmony', dims=1:15)
+
+# Create a UMAP dimensionality reduction plot of metacells colored by their annotated cell types.
+p1 <- DimPlotMetacells(seurat_obj, group.by='celltype') + umap_theme() + ggtitle("Cell Type")
+p2 <- DimPlotMetacells(seurat_obj, group.by='orig.ident') + umap_theme() + ggtitle("Sample")
+
+p1 | p2
+
+###--------------------------------------------------------------------------###
+## Part 2: Co-expression network analysis
+
+#Set up the expression matrix
+seurat_obj <- SetDatExpr(
+  seurat_obj,
+  group_name = "SHF", # the name of the group of interest in the group.by column
+  group.by='celltype', # the metadata column containing the cell type info. This same column should have also been used in MetacellsByGroups
+  assay = 'RNA', # using RNA assay
+  layer = 'data' # using normalized data
+)
+
+###----------------------Select soft-power threshold-------------------------###
+# Test different soft powers
+seurat_obj <- TestSoftPowers(
+  seurat_obj,
+  networkType = 'signed' # you can also use "unsigned" or "signed hybrid"
+)
+
+# Plot the results
+plot_list <- PlotSoftPowers(seurat_obj)
+
+# Assemble with patchwork
+wrap_plots(plot_list, ncol=2)
+
+# Access the output table from the parameter sweep
+power_table <- GetPowerTable(seurat_obj)
+head(power_table)
+
+# Construct co-expression network
+seurat_obj <- ConstructNetwork(
+  seurat_obj,
+  tom_name = 'SHF' # name of the topoligical overlap matrix written to disk
+)
+
+# Visualize the WGCNA dendrogram
+PlotDendrogram(seurat_obj, main='SHF hdWGCNA Dendrogram')
+ 
+# Inspect the topoligcal overlap matrix (TOM) (Optional)
+TOM <- GetTOM(seurat_obj)
+
+# Compute all MEs in the full single-cell dataset
+seurat_obj <- ModuleEigengenes(
+  seurat_obj,
+  group.by.vars="orig.ident"
+)
+
+# Harmonized module eigengenes
+hMEs <- GetMEs(seurat_obj)
+
+# List of  module eigengenes
+MEs <- GetMEs(seurat_obj, harmonized=FALSE)
+
+# Compute eigengene-based connectivity (kME)
+seurat_obj <- ModuleConnectivity(
+  seurat_obj,
+  group.by = 'celltype', group_name = 'SHF'
+)
+
+# Rename the modules
+seurat_obj <- ResetModuleNames(
+  seurat_obj,
+  new_name = "SHF-M"
+)
+
+# Plot genes ranked by kME for each module
+p <- PlotKMEs(seurat_obj, ncol=5)
+
+p
+
+# Get the module assignment table
+modules <- GetModules(seurat_obj) %>% subset(module != 'grey')
+
+# Show the first 6 columns
+head(modules[,1:6])
+
+# Get hub genes
+hub_df <- GetHubGenes(seurat_obj, n_hubs = 10)
+head(hub_df)
+
+###--------------------------------------------------------------------------###
+## Part 3: Differential module eigengene (DME) analysis
+
+# Define cells labeled as 'SHF' celltype and from sample 'Cyp26b1_KO_E12.5' as group 1
+group1 <- seurat_obj@meta.data %>% subset(celltype == 'SHF' & orig.ident == "Cyp26b1_KO_E12.5") %>% rownames
+
+# Define cells labeled as 'SHF' celltype and from sample 'WT_E12.5' as group 2
+group2 <- seurat_obj@meta.data %>% subset(celltype == 'SHF' & orig.ident == "WT_E12.5") %>% rownames
+head(group1)
+
+# Perform DME analysis between the two groups using the Wilcoxon rank-sum test.
+DMEs <- FindDMEs(
+  seurat_obj,
+  barcodes1 = group1,
+  barcodes2 = group2,
+  test.use='wilcox',
+  wgcna_name='tutorial'
+)
+
+# The top results from the DME analysis showing modules differentially expressed.
+head(DMEs)
+
+# Make a volcano plot to show the effect size and the significance level together.
+PlotDMEsVolcano(
+  seurat_obj,
+  DMEs,
+  wgcna_name = 'tutorial'
+)
+# Output: Hub modules are moldules 4, 13, and 18  
+
+###--------------------------------------------------------------------------###
+## Part 4: Visualization of Cell-type-specific co-expression networks 
+
+# Load required packages for network visualization
+library(tidyverse)
+library(cowplot)
+library(patchwork)
+library(magrittr)
+
+# Co-expression network analysis packages
+library(WGCNA)
+library(hdWGCNA)
+
+# Network analysis & visualization package
+library(igraph)
+
+# Using the cowplot theme for ggplot
+theme_set(theme_cowplot())
+
+# Set random seed for reproducibility
+set.seed(12345)
+
+# Individual module network plots
+ModuleNetworkPlot(
+  seurat_obj, 
+  outdir='ModuleNetworks', #new folder name
+  n_inner = 10, #number of genes in inner ring = hub genes
+  n_outer = 30, #number of genes in outer ring
+  plot_size=c(10,10), #larger plotting area
+  mods = mods[c(4,13,18)], #selected modules 
+  edge_prop = 0.1, #only the top 10% strongest edges
+  vertex.label.cex=1 #font size
+)
+
+options(future.globals.maxSize = Inf)  # Set up "No limit"
+
+# Get the list of modules
+modules <- GetModules(seurat_obj)
+
+# Extract the unique module names (levels) excluding the 'grey' module.
+mods <- levels(modules$module); mods <- mods[mods != 'grey']
+
+# Adjust plot margins for better visualization.
+dev.off()
+par(mar = c(2, 2, 2, 2))
+
+# Combined hub gene network plots of modules 4,13,18
+g <- HubGeneNetworkPlot(
+  seurat_obj,
+  n_hubs = 10, #top 10 hub genes
+  n_other=30,
+  edge_prop = 0.1, #only the top 10% strongest edges
+  mods = mods[c(4,13,18)], # only select 3 modules
+)
+g
+
+###-------------------------------End----------------------------------------###
+
+
