@@ -29,7 +29,8 @@ library(ggpubr)
 ## Part 1: Upload data, create Seurat object for scRNA-seq data of embryonic, 
 # mouse heart at the day 12.5 of development, and perform quality control.
 
-The dataset is uploaded here: link drive
+# The dataset is uploaded here: 
+# https://drive.google.com/file/d/18FvglCVXvVpGjcXPlhxLWISqkpD92WYS/view?usp=sharing 
 
 # Load the dataset
 orig_data <- readRDS("filtered_sqc_data.rds")
