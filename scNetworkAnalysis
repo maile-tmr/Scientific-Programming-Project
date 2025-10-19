@@ -112,3 +112,82 @@ p2 <- DimPlotMetacells(seurat_obj, group.by='orig.ident') + umap_theme() + ggtit
 
 p1 | p2
 
+###--------------------------------------------------------------------------###
+## Part 2: Co-expression network analysis
+
+#Set up the expression matrix
+seurat_obj <- SetDatExpr(
+  seurat_obj,
+  group_name = "SHF", # the name of the group of interest in the group.by column
+  group.by='celltype', # the metadata column containing the cell type info. This same column should have also been used in MetacellsByGroups
+  assay = 'RNA', # using RNA assay
+  layer = 'data' # using normalized data
+)
+
+###----------------------Select soft-power threshold-------------------------###
+# Test different soft powers
+seurat_obj <- TestSoftPowers(
+  seurat_obj,
+  networkType = 'signed' # you can also use "unsigned" or "signed hybrid"
+)
+
+# Plot the results
+plot_list <- PlotSoftPowers(seurat_obj)
+
+# Assemble with patchwork
+wrap_plots(plot_list, ncol=2)
+
+# Access the output table from the parameter sweep
+power_table <- GetPowerTable(seurat_obj)
+head(power_table)
+
+# Construct co-expression network
+seurat_obj <- ConstructNetwork(
+  seurat_obj,
+  tom_name = 'SHF' # name of the topoligical overlap matrix written to disk
+)
+
+# Visualize the WGCNA dendrogram
+PlotDendrogram(seurat_obj, main='SHF hdWGCNA Dendrogram')
+ 
+# Inspect the topoligcal overlap matrix (TOM) (Optional)
+TOM <- GetTOM(seurat_obj)
+
+# Compute all MEs in the full single-cell dataset
+seurat_obj <- ModuleEigengenes(
+  seurat_obj,
+  group.by.vars="orig.ident"
+)
+
+# Harmonized module eigengenes
+hMEs <- GetMEs(seurat_obj)
+
+# List of  module eigengenes
+MEs <- GetMEs(seurat_obj, harmonized=FALSE)
+
+# Compute eigengene-based connectivity (kME)
+seurat_obj <- ModuleConnectivity(
+  seurat_obj,
+  group.by = 'celltype', group_name = 'SHF'
+)
+
+# Rename the modules
+seurat_obj <- ResetModuleNames(
+  seurat_obj,
+  new_name = "SHF-M"
+)
+
+# Plot genes ranked by kME for each module
+p <- PlotKMEs(seurat_obj, ncol=5)
+
+p
+
+# Get the module assignment table
+modules <- GetModules(seurat_obj) %>% subset(module != 'grey')
+
+# Show the first 6 columns
+head(modules[,1:6])
+
+# Get hub genes
+hub_df <- GetHubGenes(seurat_obj, n_hubs = 10)
+head(hub_df)
