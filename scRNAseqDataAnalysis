@@ -109,7 +109,29 @@ data <- ScaleData(data,  verbose=FALSE)
 data <- RunPCA(data, verbose=FALSE)
 
 ###--------------------------------------------------------------------------###
-##Part 3: Batch-corrected clustering and visualization of scRNA-seq data
+##Part 3: Select the optimal number of PCs used for clustering
+
+## Method 1: Use Elbow plot
+#Run elbow plot to identify optimal number of PCs
+ElbowPlot(data, ndims = 50) # 50PC is the maximun value 
+
+## Method 2: Identify PCs that explain 80% of variances
+# Determine percent of variation associated with each PC
+pct <- data[["pca"]]@stdev / sum(data[["pca"]]@stdev) * 100
+
+# Calculate cumulative percents for each PC
+cumu <- cumsum(pct)
+
+# Determine which PC exhibits cumulative percent greater than 
+# 90% and % variation associated with the PC as less than 5
+co1 <- which(cumu > 90 & pct < 5)[1]
+
+co1
+# col = 41
+# Select the first 50 PCs for dimensional reduction
+
+###--------------------------------------------------------------------------###
+##Part 4: Batch-corrected clustering and visualization of scRNA-seq data
 
 # Perform batch correction using Harmony
 data <- RunHarmony(data, group.by.vars = "orig.ident", layer = "RNA", 
