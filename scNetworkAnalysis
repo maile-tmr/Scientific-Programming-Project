@@ -86,3 +86,29 @@ seurat_obj <- MetacellsByGroups(
 
 # Normalize metacell expression matrix
 seurat_obj <- NormalizeMetacells(seurat_obj)
+
+###----------------Process the Metacell Seurat Object------------------------###
+# Extract the metacell-level expression data stored within the Seurat object for further analysis.
+metacell_obj <- GetMetacellObject(seurat_obj)
+
+# Normalize the metacell expression matrix.
+seurat_obj <- NormalizeMetacells(seurat_obj)
+
+# Scale the metacell data focusing on variable features 
+seurat_obj <- ScaleMetacells(seurat_obj, features=VariableFeatures(seurat_obj))
+
+# Perform PCA on metacells using variable genes to reduce dimensionality while preserving key variation.
+seurat_obj <- RunPCAMetacells(seurat_obj, features=VariableFeatures(seurat_obj))
+
+# Apply Harmony batch correction on metacell PCA embeddings
+seurat_obj <- RunHarmonyMetacells(seurat_obj, group.by.vars='orig.ident')
+
+# Generate a UMAP embedding from the Harmony-corrected metacell space
+seurat_obj <- RunUMAPMetacells(seurat_obj, reduction='harmony', dims=1:15)
+
+# Create a UMAP dimensionality reduction plot of metacells colored by their annotated cell types.
+p1 <- DimPlotMetacells(seurat_obj, group.by='celltype') + umap_theme() + ggtitle("Cell Type")
+p2 <- DimPlotMetacells(seurat_obj, group.by='orig.ident') + umap_theme() + ggtitle("Sample")
+
+p1 | p2
+
