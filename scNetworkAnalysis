@@ -1,0 +1,88 @@
+#=============================================================================#
+# Course: Scientific Programming 
+# Research Project 
+# Section 2: Construction of Cell-type-specific co-expression networks
+#																	                                       		   															                                #
+# Date: October 19, 2025											                                
+# Author: Mai Le, ID: i6375777
+# Maastricht University                                                       #
+#=============================================================================#
+
+
+setwd("D:/UM/Scientific programming")
+
+# Load required packages
+library(Seurat)
+library(SeuratData)
+#library(SeuratWrappers)
+#library(Azimuth)
+library(ggplot2)
+library(patchwork)
+library(ggrepel)
+library(dplyr)
+library(remotes)
+library(Seurat)
+library(tidyverse)
+library(cowplot)
+#BiocManager::install("UCell")
+#BiocManager::install("GeneOverlap")
+library(UCell) #required for hdWGCNA install
+library(GeneOverlap)  #required for hdWGCNA install
+
+# Install hdWGCNA package from github
+if (!requireNamespace("devtools", quietly = TRUE)) {
+  install.packages("devtools")
+}
+devtools::install_github("smorabit/hdWGCNA")
+
+library(WGCNA)
+library(hdWGCNA)
+
+# using the cowplot theme for ggplot
+theme_set(theme_cowplot())
+
+# set random seed for reproducibility
+set.seed(12345)
+
+# optionally enable multithreading
+enableWGCNAThreads(nThreads = 8)
+
+The data is available here: 
+# Load the scRNA-seq dataset
+seurat_obj <- readRDS("filtered_sqc_data.rds")
+
+# Run additional command if you are using Seurat v5
+seurat_obj <- SeuratObject::UpdateSeuratObject(seurat_obj)
+
+# Plot the UMAP colored by cell type just to check that we have loaded the data correctly, 
+# and to make sure that we have grouped cells into clusters and cell types.
+p <- DimPlot(seurat_obj, group.by='celltype', label=TRUE) +
+  umap_theme() + ggtitle('') + NoLegend()
+p
+
+###--------------------------------------------------------------------------###
+## Part 1:  Set up Seurat object for hdWGCNA and construct metacells
+
+# Set up Seurat object and Select genes that are expressed in at least 5% of cells
+# in this dataset, and we will name our hdWGCNA experiment “tutorial”
+seurat_obj <- SetupForWGCNA(
+  seurat_obj,
+  gene_select = "fraction", # the gene selection approach
+  fraction = 0.05, # fraction of cells that a gene needs to be expressed in order to be included
+  wgcna_name = "tutorial" # the name of the hdWGCNA experiment
+)
+
+# Construct metacells in each group
+seurat_obj <- MetacellsByGroups(
+  seurat_obj = seurat_obj,
+  group.by = c("celltype", "orig.ident"), # specify the columns in seurat_obj@meta.data to group by
+  reduction = 'harmony', # select the dimensionality reduction to perform KNN on
+  k = 30, # nearest-neighbors parameter
+  max_shared = 10, # maximum number of shared cells between two metacells
+  ident.group = 'celltype' # set the Idents of the metacell seurat object
+)
+# Output: In MetacellsByGroups(seurat_obj = seurat_obj, group.by = c("celltype",  :
+#Removing the following groups that did not meet min_cells: Ery#WT_E12.5
+
+# Normalize metacell expression matrix
+seurat_obj <- NormalizeMetacells(seurat_obj)
