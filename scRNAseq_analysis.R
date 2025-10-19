@@ -86,3 +86,77 @@ p3 <- VlnPlot(data, features = c("percent.mt"), pt.size = 0, raster=FALSE) +
         axis.title = element_text(size = 12), 
         axis.text.x=element_text(angle = 45,hjust=1)) 
 p3
+
+
+###--------------------------------------------------------------------------###
+##Part 2: Pre-process the seurat object for clustering and annotation
+
+# Use the cowplot theme for ggplot
+theme_set(theme_cowplot())
+
+# set random seed for reproducibility
+set.seed(100)
+
+# Normalize data
+data <- NormalizeData(data, normalization.method = "LogNormalize", 
+                      verbose=FALSE, scale.factor = 10000, assay = "RNA")
+
+# Identify top 2000 highly variable features
+data <- FindVariableFeatures(data, verbose=FALSE, selection.method = "vst", 
+                             nfeatures = 2000)
+
+# Scale the data
+data <- ScaleData(data,  verbose=FALSE)
+
+# Perform dimensional reduction using PCA
+data <- RunPCA(data, verbose=FALSE)
+
+###--------------------------------------------------------------------------###
+##Part 3: Select the optimal number of PCs used for clustering
+
+## Method 1: Use Elbow plot
+#Run elbow plot to identify optimal number of PCs
+ElbowPlot(data, ndims = 50) # 50PC is the maximun value 
+
+## Method 2: Identify PCs that explain 80% of variances
+# Determine percent of variation associated with each PC
+pct <- data[["pca"]]@stdev / sum(data[["pca"]]@stdev) * 100
+
+# Calculate cumulative percents for each PC
+cumu <- cumsum(pct)
+
+# Determine which PC exhibits cumulative percent greater than 
+# 90% and % variation associated with the PC as less than 5
+co1 <- which(cumu > 90 & pct < 5)[1]
+
+co1
+# col = 41
+# Select the first 50 PCs for dimensional reduction
+
+###--------------------------------------------------------------------------###
+##Part 3: Batch-corrected clustering and visualization of scRNA-seq data
+
+# Perform batch correction using Harmony
+data <- RunHarmony(data, group.by.vars = "orig.ident", layer = "RNA", 
+                   max.iter.harmony = 20)
+
+# Build the nearest-neighbor graph using Harmony-reduced embeddings. 
+# This graph is later used for clustering
+# Try different values of k (defaul value = 30) to identify the optimal one 
+# that balances both local and global preservation of the data 
+data <- FindNeighbors(data, reduction = "harmony", dims = 1:50, k.param = 40)
+
+# Perform graph-based clustering by using the Leiden algorithm. 
+# Try different values of resolution to identify the optimal one, 
+# given that there are 10 cell types in this dataset.
+data <- FindClusters(data, resolution = 0.2) #Number of communities/clusters:12
+
+# Compute a UMAP embedding using the Harmony-corrected data for 2D visualization.
+data <- RunUMAP(data, reduction = "harmony", dims = 1:50, n.neighbors = 40)
+
+# UMAP visualization plots clusters split by sample condition (orig.ident = KO or WT)
+DimPlot(data, group.by = "seurat_clusters", split.by="orig.ident", ncol=2, 
+        raster=FALSE) + ggtitle("") + NoLegend() + theme_map()
+
+# Visualize clusters based on PCA reduction before batch correction
+DimPlot(data, group.by = "seurat_clusters", reduction = "pca") 
