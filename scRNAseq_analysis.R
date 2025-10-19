@@ -172,7 +172,6 @@ head(cluster0.markers, n = 10)
 #cluster1.markers <- FindMarkers(data, ident.1 = 1)
 #head(cluster1.markers, n = 10)
 
-
 # Then visualizing the spatial distribution and expression levels of marker gene
 # for each cell type in UMAP plot
 FeaturePlot(data, features = c("Cdh5")) # canonical marker for endothelial cells 
@@ -189,4 +188,33 @@ FeaturePlot(data, features = c("C1qa")) # canonical marker for macrophages.
 # Visualize expression patterns of multiple marker genes together
 FeaturePlot(data, features = c("Cdh5", "Myl2", "Twist1", "Myl1", "Upk3b", "Fbln5",
                                "Tcf21", "Islr", "Hbb-bt","C1qa"))
+
+###--------------------------------------------------------------------------###
+##Part 5: Annotate cell types for each cluster
+
+# Define a vector of cell type labels corresponding to each cluster in the data.
+new.cluster.ids <- c("EC", "EndMT", "vCM","VSMC", "Epi", "EC","EPDC", "aCM",
+                     "EC", "SHF", "Ery", "Mac")
+
+# Assign the defined cell type labels to cluster levels in the Seurat object.
+names(new.cluster.ids) <- levels(data)
+
+# Rename cluster identities in the Seurat object with the new cell type labels.
+data <- RenameIdents(data, new.cluster.ids)
+
+# Store the new cell type labels in the metadata for easy reference and downstream use.
+data@meta.data$celltype <- Idents(data)
+
+# Re-run UMAP dimensional reduction using the Harmony-corrected embeddings 
+data <- RunUMAP(data, reduction="harmony", verbose = FALSE, dims = 1:50,  n.neighbors = 40)
+
+# Generate a UMAP plot showing the annotated cell types, split by original sample identity.
+p <- DimPlot(data, group.by = 'celltype', split.by = "orig.ident", label = TRUE) +
+  umap_theme() + ggtitle('') + NoLegend()
+
+# Display the plot.
+p
+
+###--------------------------------End---------------------------------------###
+
 
